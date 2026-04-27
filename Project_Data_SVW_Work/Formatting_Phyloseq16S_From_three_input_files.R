@@ -1,0 +1,306 @@
+#install.packages("BiocManager")
+#BiocManager::install("phyloseq")
+#install.packages("microbiome")
+library(tidyverse)
+library(phyloseq)
+library(ape)
+library(vegan)
+
+# -----------------------------
+# 1. Load combined data file
+# -----------------------------
+asv_data <- read_csv("./feature_with_taxonomy_wide.csv")
+
+# -----------------------------
+# 2. Create feature table (counts)
+# -----------------------------
+sv <- asv_data %>%
+  select(ID, starts_with("WS")) %>%
+  as.data.frame()
+
+rownames(sv) <- sv$ID
+sv$ID <- NULL
+
+# -----------------------------
+# 3. Create taxonomy table
+# -----------------------------
+taxa <- asv_data %>%
+  select(ID, Kingdom, Phylum, Class, Order, Family, Genus, Species) %>%
+  as.data.frame()
+
+rownames(taxa) <- taxa$ID
+taxa$ID <- NULL
+
+# -----------------------------
+# 4. Load metadata
+# -----------------------------
+metadata <- read_csv("./metabarcode_metadata.csv") %>%
+  as.data.frame()
+
+# Force sample names to match feature table
+metadata$SampleID <- colnames(sv)
+rownames(metadata) <- metadata$SampleID
+metadata$SampleID <- NULL
+
+# -----------------------------
+# 5. Convert to phyloseq
+# -----------------------------
+sv <- otu_table(as.matrix(sv), taxa_are_rows = TRUE)
+taxa <- tax_table(as.matrix(taxa))
+metadata <- sample_data(metadata)
+
+physeq16s <- phyloseq(sv, taxa, metadata)
+
+# -----------------------------
+# 6. Add phylogenetic tree
+# -----------------------------
+tree <- rtree(ntaxa(physeq16s), rooted = TRUE, tip.label = taxa_names(physeq16s))
+phy_tree(physeq16s) <- tree
+
+# -----------------------------
+# 7. Check object
+# -----------------------------
+physeq16s
+
+#AFTERPHYSEQ#
+##### Filtering #####
+
+# Filter out reads mapped to chloroplasts and mitochondria (host & 
+# diet contamination)
+
+physeq16s <- physeq16s %>%
+  subset_taxa(
+    Family  != "Mitochondria" &
+      Order   != "Chloroplast")
+
+# Create table, number of features for each phyla
+table(tax_table(physeq16s)[, "Phylum"], exclude = NULL)
+
+# Remove features with ambiguous phylum annotation 
+physeq16s <- subset_taxa(physeq16s, !is.na(Phylum) &
+                           !Phylum %in% c("", "Unknown", "uncharacterized",
+                                          "unidentified")) 
+
+physeq16s
+
+# How many ASVs were removed (hint: compare the output of physeq16s with
+# it's previous output in your console)?
+
+# Save your phyloseq object as an .RDS file so you don't have to run all these 
+# commands next time you open this code. You will only have to run the first
+# line of code in the next section: readRDS().
+saveRDS(physeq16s, "physeq16s_GroupProject.rds")
+
+
+##### Loading in & Summarizing the data #####
+
+physeq16s <- readRDS("physeq16s_GroupProject.rds") 
+# this is a data object that contains all our data: read counts per sample,
+# taxonomy, and sample metadata
+
+# A) This produces an output for our sample metadata. What type of information
+# does it contain?
+sample_data(physeq16s)
+
+# B) Let's look at a summary of the number of reads we got back from 
+# sequencing...
+#summarize_phyloseq(physeq16s)
+
+# Let's ask R to produce some taxonomic summaries of our ASVs (i.e., unique 
+# 16S reads):
+
+# A) Number of ASVs for each kingdom. Which kingdoms were identified by our 
+# V3-V4 sequencing?
+table(tax_table(physeq16s)[, "Kingdom"], exclude = NULL)
+
+# B) Number of ASVs for each phylum. Which is the most diverse phylum?
+table(tax_table(physeq16s)[, "Phylum"], exclude = NULL)
+
+#you have to adapt this portion to what is in your data/specific to your data set
+adiv <- data.frame(
+  "Observed" = phyloseq::estimate_richness(physeq16s, measures = "Observed"),
+  "Shannon" = phyloseq::estimate_richness(physeq16s, measures = "Shannon"),
+  "Site" = phyloseq::sample_data(physeq16s)$SubSite)
+
+# Create boxplots showing alpha diversity by Site
+adiv %>%
+  gather(key = metric, value = value, c("Observed", "Shannon")) %>%
+  mutate(metric = factor(metric, levels = c("Observed", "Shannon"))) %>%
+  ggplot(aes(
+    x = Site,
+    y = value,
+    fill = Site
+  )) +
+  geom_boxplot() +
+  geom_jitter(color="black", size = 1.5, alpha=0.5, position=position_jitter(0.2)) +
+  labs(x = "", y = "") +
+  facet_wrap(~ metric, scales = "free") +
+  theme_bw() +
+  scale_fill_manual(values = c("#466e95", "#b7d8ae"))
+
+#SavingAlpha figure as PNG
+png(width=8, height=3.5, units="in", res=600, file = "alphadiversity.png")
+print(alpha)
+dev.off()
+
+# But, are these differences statistically significant?
+
+# A) Richess
+summary(aov(Observed ~ Site, data = adiv))
+
+# B) Shannon diversity
+summary(aov(Shannon ~ Site, data = adiv))
+
+##### Beta Diversity: Composition #####
+
+# Microbial ecologists can compare composition by calculating the pairwise distance between samples.
+# Samples that are more similar in composition will have shorter pairwise distances (i.e., they will
+# be closer together). We can use many distance metrics to calculate compositional difference. Here,
+# we will use weighted Unifrac ("wunifrac") which takes into account both abundance and phylogenetic 
+# distances between ASVs in each sample.
+
+physeq16s.log <- transform_sample_counts(physeq16s, function(x) log(1 + x))
+physeq16s.ord <- ordinate(physeq16s.log, method = "MDS", distance = "wunifrac")
+
+# Visualize differences in composition using ordination
+
+comp <- plot_ordination(physeq16s.log, physeq16s.ord, color = "SubSite") + 
+  geom_point(size = 4) +
+  theme_bw() +
+  scale_color_manual(values = c("#75639a", "#d698ae"))
+
+comp # view the plot
+
+# let's save this figure to our folder (next 3 lines)
+png(width=5, height=3, units="in", res=600, file = "betadiversity.png")
+print(comp)
+dev.off()
+
+##### Beta Diversity: PERMANOVA #####
+
+# Calculate weighted UniFrac distance matrix (phylogenetic + abundance-based differences)
+wu.dist <- phyloseq::distance(physeq16s.log, method = "wunifrac")
+
+# Test whether community composition differs by SubSite using PERMANOVA
+vegan::adonis2(wu.dist ~ sample_data(physeq16s.log)$SubSite,
+               by = "terms")
+
+# This tells us if there are differences, but by collapsing each diverse community into a single
+# point, we lose the ability to tell which ASVs are different. We can look into these taxonomic 
+# differences by calculating and plotting ASV relative abundance.
+
+# A) Relative abundance of top phyla
+
+#------------------------------------------------------------------------------------------
+  # A) Relative abundance of top phyla
+  
+  # Convert our reads into relative abundances:
+  physeq16s.rel = transform_sample_counts(physeq16s, function(x) x/sum(x)*100)
+
+# Agglomerate taxa at phylum level (makes for nicer plots)
+glom <- tax_glom(physeq16s.rel, taxrank = 'Phylum', NArm = FALSE)
+ps.melt <- psmelt(glom)
+
+# rearrange the data and find the median
+ps.melt$Phylum <- as.character(ps.melt$Phylum)
+
+ps.melt <- ps.melt %>%
+  group_by(Phylum) %>%
+  mutate(median = median(Abundance))
+
+# Identify most abundant phyla (>5% of community)
+keep <- unique(ps.melt$Phylum[ps.melt$Abundance > 5])
+
+# Group all other phyla as "Other"
+ps.melt$Phylum[!(ps.melt$Phylum %in% keep)] <- "Other"
+
+# put all this info together!  ✅ KEEP Sample
+ps.melt2 <- ps.melt %>%
+  group_by(Sample, SubSite, Phylum) %>%
+  dplyr::summarise(Abundance = sum(Abundance), .groups = "drop")
+
+# Create a color palette
+palette <- c("#75639a", "#beb8c9", "#466e95", "#7396a9", "#85c0a3",
+             "#b7d8ae", "#fae588", "#fcefb4", "#Dee0e2")
+
+# Plot relative abundance for each sample
+rel.abund <- ggplot(ps.melt2, aes(x = Sample, y = Abundance, fill = Phylum)) +
+  geom_bar(stat = "identity",
+           aes(fill = factor(Phylum, levels = c("Pseudomonadota",
+                                                "Bacteroidota",
+                                                "Bacillota",
+                                                "Actinomycetota",
+                                                "Campylobacterota",
+                                                "Planctomycetota",
+                                                "Cyanobacteriota",
+                                                "Verrucomicrobiota",
+                                                "Other")))) +
+  labs(x = "", y = "Relative Abundance (%)") +
+  theme_bw() +
+  theme(legend.position = "right",
+        legend.key.size = unit(0.2,'cm'),
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust = 1)) +
+  scale_fill_manual(values = palette) +
+  facet_grid(. ~ factor(SubSite, levels = c('Andrews Memorial',
+                                            'Bird Trail')),
+             scales = "free", switch = "x", space = "free_x") +
+  theme(strip.placement = "outside")
+
+rel.abund # view the plot  
+
+png(width = 9, height = 3, units = "in", res = 600, file = "relativeabund.phylum.png")
+print(rel.abund)
+dev.off()
+
+# B) Relative abundance of top orders within Pseudomonadota- edited 4/24/26
+
+# Subset our dataset to just Pseudomonadota:
+pseudomonadota <- subset_taxa(physeq16s, Phylum=="Pseudomonadota")
+pseudomonadota.noNA <- subset_taxa(pseudomonadota, !is.na(Order) & !Order %in% c("", "Unknown", "uncharacterized", "unidentified"))
+
+# Convert our reads into relative abundances:
+physeq16s.rel.pseudo = transform_sample_counts(pseudomonadota.noNA, function(x) x/sum(x)*100)
+
+# Agglomerate taxa at order level
+glom <- tax_glom(physeq16s.rel.pseudo, taxrank = 'Order', NArm = FALSE)
+ps.melt <- psmelt(glom)
+ps.melt$Order <- as.character(ps.melt$Order)
+
+ps.melt <- ps.melt %>%
+  group_by(Order) %>%
+  mutate(median=median(Abundance))
+
+# Identify most abundant orders (>10% of community)
+keep <- unique(ps.melt$Order[ps.melt$Abundance > 10])
+ps.melt$Order[!(ps.melt$Order %in% keep)] <- "Other"
+
+ps.melt2 <- ps.melt %>%
+  group_by(Sample, SubSite, Order) %>%
+  dplyr::summarise(Abundance=sum(Abundance), .groups = "drop")
+
+# Create a NEW color palette
+palette2 <- c("#565a94", "#b379b0", "#d698ae", "#e8b0b0", "#f0d4bd", "#f7f4df", "#c1e2eb", "#aac4e6","#Dee0e2")
+
+# Plot relative abundance for each sample
+pseudo <- ggplot(ps.melt2, aes(x = Sample, y = Abundance,
+                               fill = Order)) +
+  geom_bar(stat = "identity", aes(fill=factor(Order, levels = c("Methylococcales",
+                                                                "Burkholderiales","Pseudomonadales","Chromatiales","Rhodobacterales","Enterobacterales",
+                                                                "Other")))) +
+  labs(x="", y="Relative Abundance (%)") +
+  theme_bw() +
+  theme(legend.position = "right",
+        legend.key.size = unit(0.2,'cm'),
+        axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))+
+  scale_fill_manual(values=palette2)+
+  facet_grid(.~factor(SubSite, levels = c('Andrews Memorial',
+                                          'Bird Trail')),
+             scales = "free", switch = "x", space = "free_x")+
+  theme(strip.placement = "outside")
+
+pseudo # view the plot
+
+png(width=8, height=4, units="in", res=600, file = "pseudomonadota.png")
+print(pseudo)
+
+dev.off()

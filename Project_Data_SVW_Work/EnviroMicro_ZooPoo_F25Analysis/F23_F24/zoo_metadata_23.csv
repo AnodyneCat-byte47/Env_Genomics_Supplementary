@@ -1,0 +1,25 @@
+﻿SampleID,Species,Sex,Individual,Replicate,Diet,DigestiveType,Copy16S
+ER1,Elephant,Female,Genny,R1,Herbivore,Hindgut fermenter,167935
+ER2,Elephant,Female,Genny,R2,Herbivore,Hindgut fermenter,211920
+ER3,Elephant,Female,Genny,R3,Herbivore,Hindgut fermenter,181192
+ExtCtrl,Control,NA,NA,Control,NA,NA,NA
+G1R1,Giraffe,Female,Iggy,R1,Herbivore,Ruminant,240304
+G1R2,Giraffe,Female,Iggy,R2,Herbivore,Ruminant,263194
+G1R3,Giraffe,Female,Iggy,R3,Herbivore,Ruminant,3176
+G2R1,Giraffe,Male,Olmy,R1,Herbivore,Ruminant,209744
+G2R2,Giraffe,Male,Olmy,R2,Herbivore,Ruminant,238283
+G2R3,Giraffe,Male,Olmy,R3,Herbivore,Ruminant,213917
+MockPosCtrl,Mock Community,NA,NA,Control,NA,NA,NA
+PCRCtrl,Control,NA,NA,Control,NA,NA,NA
+RP1R1,Red Panda,Male,Willie,R1,Omnivore,Monogastric carnivore,2491
+RP1R2,Red Panda,Male,Willie,R2,Omnivore,Monogastric carnivore,2322
+RP1R3,Red Panda,Male,Willie,R3,Omnivore,Monogastric carnivore,2243
+RP2R1,Red Panda,Female,Starlight,R1,Omnivore,Monogastric carnivore,2241
+RP2R2,Red Panda,Female,Starlight,R2,Omnivore,Monogastric carnivore,735
+RP2R3,Red Panda,Female,Starlight,R3,Omnivore,Monogastric carnivore,834
+SL1R1,Snow Leopard,Female,Timila,R1,Carnivore,Monogastric carnivore,1167
+SL1R2,Snow Leopard,Female,Timila,R2,Carnivore,Monogastric carnivore,10563
+SL1R3,Snow Leopard,Female,Timila,R3,Carnivore,Monogastric carnivore,19970
+SL2R1,Snow Leopard,Male,Kaba,R1,Carnivore,Monogastric carnivore,176495
+SL2R2,Snow Leopard,Male,Kaba,R2,Carnivore,Monogastric carnivore,13455
+SL2R3,Snow Leopard,Male,Kaba,R3,Carnivore,Monogastric carnivore,1242
