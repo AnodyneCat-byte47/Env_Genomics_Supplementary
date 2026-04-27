@@ -24,6 +24,6 @@ Pictures for alpha diversity, beta diversity, phylumn and order visualizations a
 
 metabarcode_data.csv, taxonomy.csv as well as FeatureTable16S.tsv are the outputs From QIIMEv2.
 
-All data input into QIIME is in this google drive <a href="https://drive.google.com/drive/u/1/folders/1Jb0fSttoYzoE1Jp28WvAWUpGquC8Ru_S?ths=true" alt="Uh oh">https://drive.google.com/drive/u/1/folders/1Jb0fSttoYzoE1Jp28WvAWUpGquC8Ru_S?ths=true</a>
+All raw data input into QIIME is in this google drive <a href="https://drive.google.com/drive/u/1/folders/1Jb0fSttoYzoE1Jp28WvAWUpGquC8Ru_S?ths=true" alt="Uh oh">https://drive.google.com/drive/u/1/folders/1Jb0fSttoYzoE1Jp28WvAWUpGquC8Ru_S?ths=true</a>
 
 dna-sequences.fasta Contains the extracted Fasta sequences assigned to each taxanomic feature ID.
